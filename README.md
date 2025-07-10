@@ -4,7 +4,7 @@
   <em>Web Crawling and RAG Capabilities for AI Agents and AI Coding Assistants</em>
 </p>
 
-A powerful implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) integrated with [Crawl4AI](https://crawl4ai.com) and [Supabase](https://supabase.com/) for providing AI agents and AI coding assistants with advanced web crawling and RAG capabilities.
+A powerful implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) integrated with [Crawl4AI](https://crawl4ai.com) and [PostgreSQL](https://postgresql.org/) for providing AI agents and AI coding assistants with advanced web crawling and RAG capabilities.
 
 With this MCP server, you can <b>scrape anything</b> and then <b>use that knowledge anywhere</b> for RAG.
 
@@ -14,7 +14,7 @@ Consider this GitHub repository a testbed, hence why I haven't been super active
 
 ## Overview
 
-This MCP server provides tools that enable AI agents to crawl websites, store content in a vector database (Supabase), and perform RAG over the crawled content. It follows the best practices for building MCP servers based on the [Mem0 MCP server template](https://github.com/coleam00/mcp-mem0/) I provided on my channel previously.
+This MCP server provides tools that enable AI agents to crawl websites, store content in a vector database (PostgreSQL with pgvector), and perform RAG over the crawled content. It follows the best practices for building MCP servers based on the [Mem0 MCP server template](https://github.com/coleam00/mcp-mem0/) I provided on my channel previously.
 
 The server includes several advanced RAG strategies that can be enabled to enhance retrieval quality:
 - **Contextual Embeddings** for enriched semantic understanding
@@ -31,7 +31,7 @@ The Crawl4AI RAG MCP server is just the beginning. Here's where we're headed:
 
 1. **Integration with Archon**: Building this system directly into [Archon](https://github.com/coleam00/Archon) to create a comprehensive knowledge engine for AI coding assistants to build better AI agents.
 
-2. **Multiple Embedding Models**: Expanding beyond OpenAI to support a variety of embedding models, including the ability to run everything locally with Ollama for complete control and privacy.
+2. **✅ Multiple LLM Providers**: Now supports OpenAI, Anthropic, Ollama, and Sentence Transformers for both embeddings and completions, including the ability to run everything locally with Ollama for complete control and privacy.
 
 3. **Advanced RAG Strategies**: Implementing sophisticated retrieval techniques like contextual retrieval, late chunking, and others to move beyond basic "naive lookups" and significantly enhance the power and precision of the RAG system, especially as it integrates with Archon.
 
@@ -41,12 +41,14 @@ The Crawl4AI RAG MCP server is just the beginning. Here's where we're headed:
 
 ## Features
 
+- **Multi-Provider LLM Support**: Choose between OpenAI, Anthropic, Ollama, or local Sentence Transformers for embeddings and completions
 - **Smart URL Detection**: Automatically detects and handles different URL types (regular webpages, sitemaps, text files)
 - **Recursive Crawling**: Follows internal links to discover content
 - **Parallel Processing**: Efficiently crawls multiple pages simultaneously
 - **Content Chunking**: Intelligently splits content by headers and size for better processing
 - **Vector Search**: Performs RAG over crawled content, optionally filtering by data source for precision
 - **Source Retrieval**: Retrieve sources available for filtering to guide the RAG process
+- **Local & Cloud Options**: Run completely offline with Ollama/Sentence Transformers or use cloud APIs
 
 ## Tools
 
@@ -73,13 +75,43 @@ The server provides essential web crawling and search tools:
 
 - [Docker/Docker Desktop](https://www.docker.com/products/docker-desktop/) if running the MCP server as a container (recommended)
 - [Python 3.12+](https://www.python.org/downloads/) if running the MCP server directly through uv
-- [Supabase](https://supabase.com/) (database for RAG)
+- [PostgreSQL](https://postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) (database for RAG)
 - [OpenAI API key](https://platform.openai.com/api-keys) (for generating embeddings)
 - [Neo4j](https://neo4j.com/) (optional, for knowledge graph functionality) - see [Knowledge Graph Setup](#knowledge-graph-setup) section
 
 ## Installation
 
 ### Using Docker (Recommended)
+
+#### Option 1: Docker Compose (Easiest - includes PostgreSQL)
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/coleam00/mcp-crawl4ai-rag.git
+   cd mcp-crawl4ai-rag
+   ```
+
+2. Copy and configure environment file:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your OpenAI API key and other settings
+   ```
+
+3. Start with Docker Compose:
+   ```bash
+   # Basic setup (MCP server + PostgreSQL)
+   docker-compose up -d
+   
+   # Or with knowledge graph support
+   docker-compose --profile knowledge-graph up -d
+   
+   # Or development mode with all features
+   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+   ```
+
+See [DOCKER_COMPOSE.md](DOCKER_COMPOSE.md) for detailed Docker Compose documentation.
+
+#### Option 2: Docker Build Only
 
 1. Clone this repository:
    ```bash
@@ -92,7 +124,7 @@ The server provides essential web crawling and search tools:
    docker build -t mcp/crawl4ai-rag --build-arg PORT=8051 .
    ```
 
-3. Create a `.env` file based on the configuration section below
+3. Create a `.env` file and set up PostgreSQL separately (see Database Setup section)
 
 ### Using uv directly (no Docker)
 
@@ -124,13 +156,31 @@ The server provides essential web crawling and search tools:
 
 ## Database Setup
 
-Before running the server, you need to set up the database with the pgvector extension:
+Before running the server, you need to set up PostgreSQL with the pgvector extension:
 
-1. Go to the SQL Editor in your Supabase dashboard (create a new project first if necessary)
+### Option 1: Automated Setup (Recommended)
 
-2. Create a new query and paste the contents of `crawled_pages.sql`
+Run the included setup script:
 
-3. Run the query to create the necessary tables and functions
+```bash
+python setup_postgres.py
+```
+
+This script will:
+- Check your environment variables
+- Test the PostgreSQL connection
+- Install the pgvector extension
+- Create the required database schema
+
+### Option 2: Manual Setup
+
+1. Install PostgreSQL and the pgvector extension on your system
+2. Create a database for the project
+3. Run the SQL schema from `crawled_pages.sql`:
+
+```bash
+psql -U your_username -d your_database -f crawled_pages.sql
+```
 
 ## Knowledge Graph Setup (Optional)
 
@@ -185,11 +235,28 @@ HOST=0.0.0.0
 PORT=8051
 TRANSPORT=sse
 
+# LLM Provider Configuration
+LLM_PROVIDER=openai                    # Options: openai, anthropic, ollama
+EMBEDDING_PROVIDER=openai              # Options: openai, ollama, sentence_transformers
+LLM_MODEL=gpt-4o-mini                  # Model to use for the chosen LLM provider
+
 # OpenAI API Configuration
 OPENAI_API_KEY=your_openai_api_key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
-# LLM for summaries and contextual embeddings
-MODEL_CHOICE=gpt-4.1-nano
+# Anthropic API Configuration (if using Anthropic as LLM provider)
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Ollama Configuration (if using Ollama as LLM or embedding provider)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_EMBEDDING_DIMENSION=768
+
+# Sentence Transformers Configuration (if using local embeddings)
+SENTENCE_TRANSFORMERS_MODEL=all-MiniLM-L6-v2
+
+# LLM for summaries and contextual embeddings (legacy, uses LLM_MODEL if not set)
+MODEL_CHOICE=gpt-4o-mini
 
 # RAG Strategies (set to "true" or "false", default to "false")
 USE_CONTEXTUAL_EMBEDDINGS=false
@@ -198,14 +265,62 @@ USE_AGENTIC_RAG=false
 USE_RERANKING=false
 USE_KNOWLEDGE_GRAPH=false
 
-# Supabase Configuration
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_KEY=your_supabase_service_key
+# PostgreSQL Configuration
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=crawl4ai_rag
+POSTGRES_USER=your_username
+POSTGRES_PASSWORD=your_password
 
 # Neo4j Configuration (required for knowledge graph functionality)
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_neo4j_password
+```
+
+## LLM Provider Support
+
+The Crawl4AI RAG MCP server supports multiple LLM providers for both completions and embeddings, allowing you to choose the best provider for your needs:
+
+### Supported Providers
+
+- **OpenAI**: GPT models (gpt-4o, gpt-4o-mini, gpt-3.5-turbo) and embeddings (text-embedding-3-small/large)
+- **Anthropic**: Claude models (claude-3-5-sonnet, claude-3-haiku) for completions
+- **Ollama**: Local models for both completions and embeddings (requires local Ollama installation)
+- **Sentence Transformers**: Local embedding models from Hugging Face (runs offline)
+
+### Quick Setup Examples
+
+**All OpenAI (Cloud-based)**:
+```bash
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+```
+
+**Fully Local with Ollama**:
+```bash
+LLM_PROVIDER=ollama
+EMBEDDING_PROVIDER=ollama
+LLM_MODEL=llama3.2
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+**Privacy-focused Embeddings + Cloud LLM**:
+```bash
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=sentence_transformers
+OPENAI_API_KEY=your_key_here
+SENTENCE_TRANSFORMERS_MODEL=all-MiniLM-L6-v2
+```
+
+For detailed configuration options, model recommendations, and setup instructions, see [LLM_PROVIDERS.md](LLM_PROVIDERS.md).
+
+### Testing Your Provider Setup
+
+Use the included test script to verify your configuration:
+```bash
+python test_llm_providers.py
 ```
 
 ### RAG Strategy Options
@@ -364,8 +479,11 @@ Add this server to your MCP configuration for Claude Desktop, Windsurf, or any o
       "env": {
         "TRANSPORT": "stdio",
         "OPENAI_API_KEY": "your_openai_api_key",
-        "SUPABASE_URL": "your_supabase_url",
-        "SUPABASE_SERVICE_KEY": "your_supabase_service_key",
+        "POSTGRES_HOST": "your_postgres_host",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "crawl4ai_rag",
+        "POSTGRES_USER": "your_postgres_user",
+        "POSTGRES_PASSWORD": "your_postgres_password",
         "USE_KNOWLEDGE_GRAPH": "false",
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USER": "neo4j",
@@ -386,8 +504,11 @@ Add this server to your MCP configuration for Claude Desktop, Windsurf, or any o
       "args": ["run", "--rm", "-i", 
                "-e", "TRANSPORT", 
                "-e", "OPENAI_API_KEY", 
-               "-e", "SUPABASE_URL", 
-               "-e", "SUPABASE_SERVICE_KEY",
+               "-e", "POSTGRES_HOST", 
+               "-e", "POSTGRES_PORT",
+               "-e", "POSTGRES_DB",
+               "-e", "POSTGRES_USER",
+               "-e", "POSTGRES_PASSWORD",
                "-e", "USE_KNOWLEDGE_GRAPH",
                "-e", "NEO4J_URI",
                "-e", "NEO4J_USER",
@@ -396,8 +517,11 @@ Add this server to your MCP configuration for Claude Desktop, Windsurf, or any o
       "env": {
         "TRANSPORT": "stdio",
         "OPENAI_API_KEY": "your_openai_api_key",
-        "SUPABASE_URL": "your_supabase_url",
-        "SUPABASE_SERVICE_KEY": "your_supabase_service_key",
+        "POSTGRES_HOST": "your_postgres_host",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "crawl4ai_rag",
+        "POSTGRES_USER": "your_postgres_user",
+        "POSTGRES_PASSWORD": "your_postgres_password",
         "USE_KNOWLEDGE_GRAPH": "false",
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USER": "neo4j",
